@@ -36,6 +36,10 @@ struct Aabb2
 
 typedef struct Aabb2 Aabb2;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 FFI_PLUGIN_EXPORT Aabb2 fit_polygon_in_quad(double *points, int length);
 
 FFI_PLUGIN_EXPORT Aabb2 fit_polygon_in_quad_on_resize(double *points,
@@ -45,4 +49,9 @@ FFI_PLUGIN_EXPORT Aabb2 fit_polygon_in_quad_on_resize(double *points,
                                                       bool isTopRightStatic,
                                                       bool isBottomLeftStatic,
                                                       bool isBottomRightStatic);
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif
