@@ -23,6 +23,10 @@ class ResizableGestureDetector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final controllerWithMixins =
+        controller is CroppableImageControllerWithMixins ? controller as CroppableImageControllerWithMixins : null;
+    final hasFixedAspectRatio = controllerWithMixins?.currentAspectRatio != null;
+
     return Stack(
       fit: StackFit.passthrough,
       children: [
@@ -76,47 +80,49 @@ class ResizableGestureDetector extends StatelessWidget {
           ),
         ),
 
-        // Sides
-        Positioned(
-          left: gesturePadding * 2,
-          top: 0.0,
-          right: gesturePadding * 2,
-          height: gesturePadding * 2,
-          child: _ResizeGestureDetector(
-            controller: controller,
-            direction: ResizeDirection.toTop,
+        if (!hasFixedAspectRatio) ...[
+          // Sides are only draggable when no fixed aspect ratio is selected.
+          Positioned(
+            left: gesturePadding * 2,
+            top: 0.0,
+            right: gesturePadding * 2,
+            height: gesturePadding * 2,
+            child: _ResizeGestureDetector(
+              controller: controller,
+              direction: ResizeDirection.toTop,
+            ),
           ),
-        ),
-        Positioned(
-          left: gesturePadding * 2,
-          bottom: 0.0,
-          right: gesturePadding * 2,
-          height: gesturePadding * 2,
-          child: _ResizeGestureDetector(
-            controller: controller,
-            direction: ResizeDirection.toBottom,
+          Positioned(
+            left: gesturePadding * 2,
+            bottom: 0.0,
+            right: gesturePadding * 2,
+            height: gesturePadding * 2,
+            child: _ResizeGestureDetector(
+              controller: controller,
+              direction: ResizeDirection.toBottom,
+            ),
           ),
-        ),
-        Positioned(
-          left: 0.0,
-          top: gesturePadding * 2,
-          width: gesturePadding * 2,
-          bottom: gesturePadding * 2,
-          child: _ResizeGestureDetector(
-            controller: controller,
-            direction: ResizeDirection.toLeft,
+          Positioned(
+            left: 0.0,
+            top: gesturePadding * 2,
+            width: gesturePadding * 2,
+            bottom: gesturePadding * 2,
+            child: _ResizeGestureDetector(
+              controller: controller,
+              direction: ResizeDirection.toLeft,
+            ),
           ),
-        ),
-        Positioned(
-          right: 0.0,
-          top: gesturePadding * 2,
-          width: gesturePadding * 2,
-          bottom: gesturePadding * 2,
-          child: _ResizeGestureDetector(
-            controller: controller,
-            direction: ResizeDirection.toRight,
+          Positioned(
+            right: 0.0,
+            top: gesturePadding * 2,
+            width: gesturePadding * 2,
+            bottom: gesturePadding * 2,
+            child: _ResizeGestureDetector(
+              controller: controller,
+              direction: ResizeDirection.toRight,
+            ),
           ),
-        ),
+        ],
       ],
     );
   }
