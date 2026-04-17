@@ -102,8 +102,21 @@ mixin ResizeTransformation on BaseCroppableImageController {
     final normalizedSize = normalizeCropSize(newRect.size);
 
     if (newRect.width != normalizedSize.width) {
+      final pinnedRight = switch (direction) {
+        ResizeDirection.toLeft || ResizeDirection.toTopLeft || ResizeDirection.toBottomLeft => rect.right,
+        _ => rect.left,
+      };
+
+      final left = switch (direction) {
+        ResizeDirection.toLeft ||
+        ResizeDirection.toTopLeft ||
+        ResizeDirection.toBottomLeft =>
+          pinnedRight - normalizedSize.width,
+        _ => pinnedRight,
+      };
+
       newRect = Rect.fromLTWH(
-        rect.left,
+        left,
         newRect.top,
         normalizedSize.width,
         newRect.height,
@@ -111,9 +124,22 @@ mixin ResizeTransformation on BaseCroppableImageController {
     }
 
     if (newRect.height != normalizedSize.height) {
+      final pinnedBottom = switch (direction) {
+        ResizeDirection.toTop || ResizeDirection.toTopLeft || ResizeDirection.toTopRight => rect.bottom,
+        _ => rect.top,
+      };
+
+      final top = switch (direction) {
+        ResizeDirection.toTop ||
+        ResizeDirection.toTopLeft ||
+        ResizeDirection.toTopRight =>
+          pinnedBottom - normalizedSize.height,
+        _ => pinnedBottom,
+      };
+
       newRect = Rect.fromLTWH(
         newRect.left,
-        rect.top,
+        top,
         newRect.width,
         normalizedSize.height,
       );
@@ -146,7 +172,7 @@ mixin ResizeTransformation on BaseCroppableImageController {
   @mustCallSuper
   void onResizeEnd() {
     if (!_isResizing) return;
-    
+
     _isResizing = false;
     onTransformationEnd();
   }
