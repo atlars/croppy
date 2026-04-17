@@ -9,7 +9,9 @@ mixin ResizeStaticLayoutMixin on ResizeTransformation {
   Rect? staticCropRect;
 
   void computeStaticCropRectDuringResize() {
-    staticCropRect ??= data.cropRect;
+    // Anchor to the crop rect at gesture start so inward resizing does not
+    // cause immediate zoom
+    staticCropRect ??= transformationInitialData?.cropRect ?? data.cropRect;
 
     final newCropRect = data.cropRect;
     final minX = min(newCropRect.left, staticCropRect!.left);
