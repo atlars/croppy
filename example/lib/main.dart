@@ -1,7 +1,6 @@
 import 'dart:io';
-import 'dart:math';
-import 'dart:ui' as ui;
 import 'dart:async';
+import 'dart:ui' as ui;
 
 import 'package:croppy/croppy.dart';
 import 'package:example/custom_cropper.dart';
@@ -29,8 +28,7 @@ class ExampleScrollBehavior extends MaterialScrollBehavior {
       };
 
   @override
-  ScrollPhysics getScrollPhysics(BuildContext context) =>
-      const BouncingScrollPhysics();
+  ScrollPhysics getScrollPhysics(BuildContext context) => const BouncingScrollPhysics();
 }
 
 class MyApp extends StatelessWidget {
@@ -48,7 +46,7 @@ class MyApp extends StatelessWidget {
       ],
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.orange,
+          seedColor: Colors.blue,
           // primary: Colors.purple,
           brightness: Brightness.light,
         ),
@@ -68,31 +66,12 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  late final PageController _pageController;
   var _cropSettings = CropSettings.initial();
-  final _items = <_CroppableItem>[];
+  _CroppableItem? _selectedItem;
 
   @override
   void initState() {
     super.initState();
-    _pageController = PageController(
-      viewportFraction: 0.9,
-    );
-
-    final random = Random();
-    for (var i = 0; i < 80; i++) {
-      final image = NetworkImage(
-        'https://test-photos-qklwjen.s3.eu-west-3.amazonaws.com/image${random.nextInt(80) + 1}.jpg',
-        headers: const {'accept': '*/*'},
-      );
-
-      _items.add(
-        _CroppableItem.image(
-          originalImageProvider: image,
-          previewImageProvider: image,
-        ),
-      );
-    }
   }
 
   Future<void> _pickImage() async {
@@ -111,15 +90,12 @@ class _MyHomePageState extends State<MyHomePage> {
         provider = FileImage(File(path));
       }
 
-      _items.insert(
-        0,
-        _CroppableItem.image(
+      setState(() {
+        _selectedItem = _CroppableItem.image(
           originalImageProvider: provider,
           previewImageProvider: provider,
-        ),
-      );
-
-      setState(() {});
+        );
+      });
     }
   }
 
@@ -153,14 +129,12 @@ class _MyHomePageState extends State<MyHomePage> {
     }
 
     setState(() {
-      _items.insert(
-        0,
-        _CroppableItem.video(
-          videoPath: path,
-          player: player,
-          videoController: controller,
-          mediaSize: videoSize,
-        ),
+      _selectedItem?.player?.dispose();
+      _selectedItem = _CroppableItem.video(
+        videoPath: path,
+        player: player,
+        videoController: controller,
+        mediaSize: videoSize,
       );
     });
   }
@@ -204,41 +178,27 @@ class _MyHomePageState extends State<MyHomePage> {
 
   @override
   void dispose() {
-    _pageController.dispose();
-    for (final item in _items) {
-      item.player?.dispose();
-    }
+    _selectedItem?.player?.dispose();
     super.dispose();
-  }
-
-  int get _currentPage {
-    if (_items.isEmpty) return 0;
-    final current = _pageController.page?.round() ?? 0;
-    return current.clamp(0, _items.length - 1);
   }
 
   Future<CroppableImageData?> _initialDataFor(_CroppableItem item) async {
     if (item.data != null) return item.data;
-
-    if (item.isImage) {
-      return CroppableImageData.fromImageProvider(
-        item.originalImageProvider!,
-        cropPathFn: _cropSettings.cropShapeFn,
-      );
-    }
-
-    if (item.mediaSize != null) {
+    if (item.isVideo) {
       return CroppableImageData.initialWithCropPathFn(
         imageSize: item.mediaSize!,
         cropPathFn: _cropSettings.cropShapeFn,
       );
     }
-
-    return null;
+    return CroppableImageData.fromImageProvider(
+      item.originalImageProvider!,
+      cropPathFn: _cropSettings.cropShapeFn,
+    );
   }
 
-  Future<void> _applyCropResult(int page, CroppableImageData data) async {
-    final item = _items[page];
+  Future<void> _applyCropResult(CroppableImageData data) async {
+    final item = _selectedItem;
+    if (item == null) return;
     if (item.isVideo) {
       setState(() {
         item.data = data;
@@ -262,10 +222,94 @@ class _MyHomePageState extends State<MyHomePage> {
     });
   }
 
+  Future<void> _openCupertinoCropper() async {
+    final item = _selectedItem;
+    if (item == null) return;
+    final initialData = await _initialDataFor(item);
+    if (initialData == null || !mounted) return;
+
+    showCupertinoImageCropper(
+      context,
+      contentBuilder: (context) => item.isVideo
+          ? _VideoCanvas(
+              controller: item.videoController!,
+              mediaSize: item.mediaSize!,
+            )
+          : Image(image: item.originalImageProvider!),
+      initialData: initialData,
+      locale: _cropSettings.locale,
+      showGestureHandlesOn: _cropSettings.showGestureHandlesOn,
+      cropPathFn: _cropSettings.cropShapeFn,
+      showLoadingIndicatorOnSubmit: false,
+      enabledTransformations: _cropSettings.enabledTransformations,
+      allowedAspectRatios: _cropSettings.forcedAspectRatio != null ? [_cropSettings.forcedAspectRatio!] : null,
+      onSubmit: (result) async {
+        print("Crop result: $result");
+        await _applyCropResult(result);
+        return result;
+      },
+    );
+  }
+
+  Future<void> _openMaterialCropper() async {
+    final item = _selectedItem;
+    if (item == null) return;
+    final initialData = await _initialDataFor(item);
+    if (initialData == null || !mounted) return;
+
+    showMaterialImageCropper(
+      context,
+      contentBuilder: (context) => item.isVideo
+          ? _VideoCanvas(
+              controller: item.videoController!,
+              mediaSize: item.mediaSize!,
+            )
+          : Image(image: item.originalImageProvider!),
+      initialData: initialData,
+      locale: _cropSettings.locale,
+      cropPathFn: _cropSettings.cropShapeFn,
+      enabledTransformations: _cropSettings.enabledTransformations,
+      allowedAspectRatios: _cropSettings.forcedAspectRatio != null ? [_cropSettings.forcedAspectRatio!] : null,
+      showLoadingIndicatorOnSubmit: false,
+      onSubmit: (result) async {
+        await _applyCropResult(result);
+        return result;
+      },
+    );
+  }
+
+  Future<void> _openCustomCropper() async {
+    final item = _selectedItem;
+    if (item == null) return;
+    if (item.isVideo) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Custom cropper supports images only in this demo.'),
+        ),
+      );
+      return;
+    }
+
+    final result = await showCustomCropper(
+      context,
+      item.originalImageProvider!,
+      initialData: item.data,
+    );
+
+    if (result != null && mounted) {
+      await _applyCropResult(result);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final selectedItem = _selectedItem;
+    final hasItem = selectedItem != null;
+
     return Scaffold(
       appBar: AppBar(
+        title: const Text('Croppy Demo'),
         actions: [
           IconButton(
             onPressed: () async {
@@ -278,146 +322,67 @@ class _MyHomePageState extends State<MyHomePage> {
                 _cropSettings = newSettings;
               });
             },
+            tooltip: 'Settings',
             icon: const Icon(Icons.settings),
           ),
         ],
       ),
-      floatingActionButton: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        clipBehavior: Clip.none,
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-        child: Row(
-          spacing: 12,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            FloatingActionButton.extended(
-              heroTag: 'fab-pick-image',
-              onPressed: _pickImage,
-              label: const Text('Pick image'),
+      bottomNavigationBar: BottomAppBar(
+        child: SafeArea(
+          top: false,
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Row(
+                spacing: 8,
+                children: [
+                  FilledButton.icon(
+                    onPressed: _pickImage,
+                    icon: const Icon(Icons.photo_library_rounded),
+                    label: const Text('Pick image'),
+                  ),
+                  FilledButton.icon(
+                    onPressed: _pickVideo,
+                    icon: const Icon(Icons.video_library_rounded),
+                    label: const Text('Pick video'),
+                  ),
+                  FilledButton.icon(
+                    onPressed: hasItem ? _openCupertinoCropper : null,
+                    icon: const Icon(Icons.apple_rounded),
+                    label: const Text('Cupertino'),
+                  ),
+                  FilledButton.icon(
+                    onPressed: hasItem ? _openMaterialCropper : null,
+                    icon: const Icon(Icons.android_rounded),
+                    label: const Text('Material'),
+                  ),
+                  FilledButton.icon(
+                    onPressed: hasItem ? _openCustomCropper : null,
+                    icon: const Icon(Icons.edit_rounded),
+                    label: const Text('Custom'),
+                  ),
+                ],
+              ),
             ),
-            FloatingActionButton.extended(
-              heroTag: 'fab-pick-video',
-              onPressed: _pickVideo,
-              label: const Text('Pick video'),
-            ),
-            FloatingActionButton(
-              heroTag: 'fab-cupertino',
-              onPressed: () async {
-                if (_items.isEmpty) return;
-                final page = _currentPage;
-                final item = _items[page];
-                final initialData = await _initialDataFor(item);
-                if (initialData == null) return;
-                if (!context.mounted) return;
-
-                showCupertinoImageCropper(
-                  context,
-                  contentBuilder: (context) => item.isVideo
-                      ? _VideoCanvas(
-                          controller: item.videoController!,
-                          mediaSize: item.mediaSize!,
-                        )
-                      : Image(image: item.originalImageProvider!),
-                  initialData: initialData,
-                  locale: _cropSettings.locale,
-                  showGestureHandlesOn: _cropSettings.showGestureHandlesOn,
-                  cropPathFn: _cropSettings.cropShapeFn,
-                  showLoadingIndicatorOnSubmit: false,
-                  enabledTransformations: _cropSettings.enabledTransformations,
-                  allowedAspectRatios: _cropSettings.forcedAspectRatio != null
-                      ? [_cropSettings.forcedAspectRatio!]
-                      : null,
-                  onSubmit: (result) async {
-                    await _applyCropResult(page, result);
-                    return result;
-                  },
-                );
-              },
-              child: const Icon(Icons.apple_rounded),
-            ),
-            FloatingActionButton(
-              heroTag: 'fab-material',
-              onPressed: () async {
-                if (_items.isEmpty) return;
-                final page = _currentPage;
-                final item = _items[page];
-                final initialData = await _initialDataFor(item);
-                if (initialData == null) return;
-                if (!context.mounted) return;
-
-                showMaterialImageCropper(
-                  context,
-                  contentBuilder: (context) => item.isVideo
-                      ? _VideoCanvas(
-                          controller: item.videoController!,
-                          mediaSize: item.mediaSize!,
-                        )
-                      : Image(image: item.originalImageProvider!),
-                  initialData: initialData,
-                  locale: _cropSettings.locale,
-                  cropPathFn: _cropSettings.cropShapeFn,
-                  enabledTransformations: _cropSettings.enabledTransformations,
-                  allowedAspectRatios: _cropSettings.forcedAspectRatio != null
-                      ? [_cropSettings.forcedAspectRatio!]
-                      : null,
-                  showLoadingIndicatorOnSubmit: false,
-                  onSubmit: (result) async {
-                    await _applyCropResult(page, result);
-                    return result;
-                  },
-                );
-              },
-              child: const Icon(Icons.android_rounded),
-            ),
-            FloatingActionButton(
-              heroTag: 'fab-custom',
-              onPressed: () async {
-                if (_items.isEmpty) return;
-                final page = _currentPage;
-                final item = _items[page];
-                if (item.isVideo) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Custom cropper supports images only in this demo.',
-                      ),
-                    ),
-                  );
-                  return;
-                }
-
-                final result = await showCustomCropper(
-                  context,
-                  item.originalImageProvider!,
-                  initialData: item.data,
-                );
-
-                if (result != null && mounted) {
-                  await _applyCropResult(page, result);
-                }
-              },
-              child: const Icon(Icons.edit_rounded),
-            ),
-          ],
+          ),
         ),
       ),
       body: Center(
-        child: PageView.builder(
-          controller: _pageController,
-          itemCount: _items.length,
-          scrollDirection: Axis.horizontal,
-          padEnds: true,
-          itemBuilder: (context, i) {
-            final item = _items[i];
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
-              child: Center(
-                  child: item.isVideo
-                      ? _VideoPreview(item: item)
-                      : Image(image: item.previewImageProvider!)),
-            );
-          },
-        ),
+        child: hasItem
+            ? Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: selectedItem.isVideo
+                    ? _VideoPreview(item: selectedItem)
+                    : Image(image: selectedItem.previewImageProvider!),
+              )
+            : const Padding(
+                padding: EdgeInsets.all(24.0),
+                child: Text(
+                  'No media selected.\nPick an image or video to start cropping.',
+                  textAlign: TextAlign.center,
+                ),
+              ),
       ),
     );
   }
@@ -467,14 +432,11 @@ class _VideoCanvas extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: mediaSize.width,
-      height: mediaSize.height,
+    return AspectRatio(
+      aspectRatio: mediaSize.aspectRatio,
       child: Video(
+        fill: Colors.transparent,
         controller: controller,
-        width: mediaSize.width,
-        height: mediaSize.height,
-        fit: BoxFit.fill,
         controls: null,
       ),
     );
@@ -488,34 +450,61 @@ class _VideoPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final mediaSize = item.mediaSize!;
+
     if (item.data == null) {
-      return _VideoCanvas(
-        controller: item.videoController!,
-        mediaSize: item.mediaSize!,
+      return _fitToScreen(
+        size: mediaSize,
+        child: _VideoCanvas(
+          controller: item.videoController!,
+          mediaSize: mediaSize,
+        ),
       );
     }
 
     final data = item.data!;
-    final transform = Matrix4.identity()
-      ..translateByDouble(-data.cropRect.left, -data.cropRect.top, 0.0, 1.0)
+    final cropRect = data.cropRect;
+    final imageSize = data.imageSize;
+
+    final matrix = Matrix4.identity()
+      ..translateByDouble(-cropRect.left, -cropRect.top, 0.0, 1.0)
       ..multiply(data.totalImageTransform);
 
-    return FittedBox(
-      fit: BoxFit.contain,
-      child: SizedBox(
-        width: data.cropRect.width,
-        height: data.cropRect.height,
-        child: ClipPath(
-          clipper: CropShapeClipper(data.cropShape),
-          child: Transform(
-            transform: transform,
+    return _fitToScreen(
+      size: Size(cropRect.width, cropRect.height),
+      child: ClipRect(
+        child: Transform(
+          alignment: Alignment.topLeft,
+          transform: matrix,
+          child: OverflowBox(
+            alignment: Alignment.topLeft,
+            minWidth: imageSize.width,
+            maxWidth: imageSize.width,
+            minHeight: imageSize.height,
+            maxHeight: imageSize.height,
             child: _VideoCanvas(
               controller: item.videoController!,
-              mediaSize: data.imageSize,
+              mediaSize: mediaSize,
             ),
           ),
         ),
       ),
     );
   }
+}
+
+/// Scales [child], laid out at [size], down to fit available space.
+Widget _fitToScreen({required Size size, required Widget child}) {
+  return LayoutBuilder(
+    builder: (context, constraints) {
+      return FittedBox(
+        fit: BoxFit.contain,
+        child: SizedBox(
+          width: size.width,
+          height: size.height,
+          child: child,
+        ),
+      );
+    },
+  );
 }
