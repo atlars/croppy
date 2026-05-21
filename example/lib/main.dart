@@ -68,6 +68,7 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   var _cropSettings = CropSettings.initial();
   _CroppableItem? _selectedItem;
+  bool _isLoadingVideo = false;
 
   @override
   void initState() {
@@ -110,33 +111,41 @@ class _MyHomePageState extends State<MyHomePage> {
     final path = result.files.first.path;
     if (path == null) return;
 
-    final player = Player();
-    final controller = VideoController(player);
+    setState(() => _isLoadingVideo = true);
 
-    await player.open(Media(path), play: true);
-    await player.setPlaylistMode(PlaylistMode.single);
-    await player.setVolume(0.0);
+    try {
+      final player = Player();
+      final controller = VideoController(player);
 
-    final videoSize = await _waitForVideoSize(player);
-    if (videoSize == null) {
-      await player.dispose();
-      return;
+      await player.open(Media(path), play: true);
+      await player.setPlaylistMode(PlaylistMode.single);
+      await player.setVolume(0.0);
+
+      final videoSize = await _waitForVideoSize(player);
+      if (videoSize == null) {
+        await player.dispose();
+        return;
+      }
+
+      if (!mounted) {
+        await player.dispose();
+        return;
+      }
+
+      setState(() {
+        _selectedItem?.player?.dispose();
+        _selectedItem = _CroppableItem.video(
+          videoPath: path,
+          player: player,
+          videoController: controller,
+          mediaSize: videoSize,
+        );
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingVideo = false);
+      }
     }
-
-    if (!mounted) {
-      await player.dispose();
-      return;
-    }
-
-    setState(() {
-      _selectedItem?.player?.dispose();
-      _selectedItem = _CroppableItem.video(
-        videoPath: path,
-        player: player,
-        videoController: controller,
-        mediaSize: videoSize,
-      );
-    });
   }
 
   Future<Size?> _waitForVideoSize(Player player) async {
@@ -343,7 +352,7 @@ class _MyHomePageState extends State<MyHomePage> {
                     label: const Text('Pick image'),
                   ),
                   FilledButton.icon(
-                    onPressed: _pickVideo,
+                    onPressed: _isLoadingVideo ? null : _pickVideo,
                     icon: const Icon(Icons.video_library_rounded),
                     label: const Text('Pick video'),
                   ),
@@ -369,20 +378,22 @@ class _MyHomePageState extends State<MyHomePage> {
         ),
       ),
       body: Center(
-        child: hasItem
-            ? Padding(
-                padding: const EdgeInsets.all(24.0),
-                child: selectedItem.isVideo
-                    ? _VideoPreview(item: selectedItem)
-                    : Image(image: selectedItem.previewImageProvider!),
-              )
-            : const Padding(
-                padding: EdgeInsets.all(24.0),
-                child: Text(
-                  'No media selected.\nPick an image or video to start cropping.',
-                  textAlign: TextAlign.center,
-                ),
-              ),
+        child: _isLoadingVideo
+            ? const CircularProgressIndicator()
+            : hasItem
+                ? Padding(
+                    padding: const EdgeInsets.all(24.0),
+                    child: selectedItem.isVideo
+                        ? _VideoPreview(item: selectedItem)
+                        : Image(image: selectedItem.previewImageProvider!),
+                  )
+                : const Padding(
+                    padding: EdgeInsets.all(24.0),
+                    child: Text(
+                      'No media selected.\nPick an image or video to start cropping.',
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
       ),
     );
   }
