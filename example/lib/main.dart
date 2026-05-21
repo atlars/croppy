@@ -282,123 +282,124 @@ class _MyHomePageState extends State<MyHomePage> {
           ),
         ],
       ),
-      floatingActionButton: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          FloatingActionButton.extended(
-            onPressed: _pickImage,
-            label: const Text('Pick image'),
-          ),
-          const SizedBox(width: 16.0),
-          FloatingActionButton.extended(
-            onPressed: _pickVideo,
-            label: const Text('Pick video'),
-          ),
-          const SizedBox(width: 16.0),
-          FloatingActionButton(
-            onPressed: () async {
-              if (_items.isEmpty) return;
-              final page = _currentPage;
-              final item = _items[page];
-              final initialData = await _initialDataFor(item);
-              if (initialData == null) return;
-              if (!context.mounted) return;
+      floatingActionButton: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        clipBehavior: Clip.none,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        child: Row(
+          spacing: 12,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            FloatingActionButton.extended(
+              heroTag: 'fab-pick-image',
+              onPressed: _pickImage,
+              label: const Text('Pick image'),
+            ),
+            FloatingActionButton.extended(
+              heroTag: 'fab-pick-video',
+              onPressed: _pickVideo,
+              label: const Text('Pick video'),
+            ),
+            FloatingActionButton(
+              heroTag: 'fab-cupertino',
+              onPressed: () async {
+                if (_items.isEmpty) return;
+                final page = _currentPage;
+                final item = _items[page];
+                final initialData = await _initialDataFor(item);
+                if (initialData == null) return;
+                if (!context.mounted) return;
 
-              showCupertinoImageCropper(
-                context,
-                contentBuilder: (context) => item.isVideo
-                    ? _VideoCanvas(
-                        controller: item.videoController!,
-                        mediaSize: initialData.imageSize,
-                      )
-                    : Image(image: item.originalImageProvider!),
-                initialData: initialData,
-                locale: _cropSettings.locale,
-                heroTag: 'item-$page',
-                showGestureHandlesOn: _cropSettings.showGestureHandlesOn,
-                cropPathFn: _cropSettings.cropShapeFn,
-                showLoadingIndicatorOnSubmit: false,
-                enabledTransformations: _cropSettings.enabledTransformations,
-                allowedAspectRatios: _cropSettings.forcedAspectRatio != null
-                    ? [_cropSettings.forcedAspectRatio!]
-                    : null,
-                onSubmit: (result) async {
-                  await _applyCropResult(page, result);
-                  return result;
-                },
-              );
-            },
-            heroTag: 'fab-cupertino',
-            child: const Icon(Icons.apple_rounded),
-          ),
-          const SizedBox(width: 16.0),
-          FloatingActionButton(
-            onPressed: () async {
-              if (_items.isEmpty) return;
-              final page = _currentPage;
-              final item = _items[page];
-              final initialData = await _initialDataFor(item);
-              if (initialData == null) return;
-              if (!context.mounted) return;
-
-              showMaterialImageCropper(
-                context,
-                contentBuilder: (context) => item.isVideo
-                    ? _VideoCanvas(
-                        controller: item.videoController!,
-                        mediaSize: initialData.imageSize,
-                      )
-                    : Image(image: item.originalImageProvider!),
-                initialData: initialData,
-                locale: _cropSettings.locale,
-                heroTag: 'item-$page',
-                cropPathFn: _cropSettings.cropShapeFn,
-                enabledTransformations: _cropSettings.enabledTransformations,
-                allowedAspectRatios: _cropSettings.forcedAspectRatio != null
-                    ? [_cropSettings.forcedAspectRatio!]
-                    : null,
-                showLoadingIndicatorOnSubmit: false,
-                onSubmit: (result) async {
-                  await _applyCropResult(page, result);
-                  return result;
-                },
-              );
-            },
-            heroTag: 'fab-material',
-            child: const Icon(Icons.android_rounded),
-          ),
-          const SizedBox(width: 16.0),
-          FloatingActionButton(
-            onPressed: () async {
-              if (_items.isEmpty) return;
-              final page = _currentPage;
-              final item = _items[page];
-              if (item.isVideo) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      'Custom cropper supports images only in this demo.',
-                    ),
-                  ),
+                showCupertinoImageCropper(
+                  context,
+                  contentBuilder: (context) => item.isVideo
+                      ? _VideoCanvas(
+                          controller: item.videoController!,
+                          mediaSize: item.mediaSize!,
+                        )
+                      : Image(image: item.originalImageProvider!),
+                  initialData: initialData,
+                  locale: _cropSettings.locale,
+                  showGestureHandlesOn: _cropSettings.showGestureHandlesOn,
+                  cropPathFn: _cropSettings.cropShapeFn,
+                  showLoadingIndicatorOnSubmit: false,
+                  enabledTransformations: _cropSettings.enabledTransformations,
+                  allowedAspectRatios: _cropSettings.forcedAspectRatio != null
+                      ? [_cropSettings.forcedAspectRatio!]
+                      : null,
+                  onSubmit: (result) async {
+                    await _applyCropResult(page, result);
+                    return result;
+                  },
                 );
-                return;
-              }
+              },
+              child: const Icon(Icons.apple_rounded),
+            ),
+            FloatingActionButton(
+              heroTag: 'fab-material',
+              onPressed: () async {
+                if (_items.isEmpty) return;
+                final page = _currentPage;
+                final item = _items[page];
+                final initialData = await _initialDataFor(item);
+                if (initialData == null) return;
+                if (!context.mounted) return;
 
-              final result = await showCustomCropper(
-                context,
-                item.originalImageProvider!,
-                heroTag: 'item-$page',
-                initialData: item.data,
-              );
+                showMaterialImageCropper(
+                  context,
+                  contentBuilder: (context) => item.isVideo
+                      ? _VideoCanvas(
+                          controller: item.videoController!,
+                          mediaSize: item.mediaSize!,
+                        )
+                      : Image(image: item.originalImageProvider!),
+                  initialData: initialData,
+                  locale: _cropSettings.locale,
+                  cropPathFn: _cropSettings.cropShapeFn,
+                  enabledTransformations: _cropSettings.enabledTransformations,
+                  allowedAspectRatios: _cropSettings.forcedAspectRatio != null
+                      ? [_cropSettings.forcedAspectRatio!]
+                      : null,
+                  showLoadingIndicatorOnSubmit: false,
+                  onSubmit: (result) async {
+                    await _applyCropResult(page, result);
+                    return result;
+                  },
+                );
+              },
+              child: const Icon(Icons.android_rounded),
+            ),
+            FloatingActionButton(
+              heroTag: 'fab-custom',
+              onPressed: () async {
+                if (_items.isEmpty) return;
+                final page = _currentPage;
+                final item = _items[page];
+                if (item.isVideo) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Custom cropper supports images only in this demo.',
+                      ),
+                    ),
+                  );
+                  return;
+                }
 
-              if (result != null && mounted) {
-                await _applyCropResult(page, result);
-              }
-            },
-            heroTag: 'fab-custom',
-            child: const Icon(Icons.edit_rounded),
-          ),
-        ],
+                final result = await showCustomCropper(
+                  context,
+                  item.originalImageProvider!,
+                  initialData: item.data,
+                );
+
+                if (result != null && mounted) {
+                  await _applyCropResult(page, result);
+                }
+              },
+              child: const Icon(Icons.edit_rounded),
+            ),
+          ],
+        ),
       ),
       body: Center(
         child: PageView.builder(
@@ -411,18 +412,9 @@ class _MyHomePageState extends State<MyHomePage> {
             return Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0),
               child: Center(
-                child: Hero(
-                  tag: 'item-$i',
-                  placeholderBuilder: (context, size, child) =>
-                      Visibility.maintain(
-                    visible: false,
-                    child: child,
-                  ),
                   child: item.isVideo
                       ? _VideoPreview(item: item)
-                      : Image(image: item.previewImageProvider!),
-                ),
-              ),
+                      : Image(image: item.previewImageProvider!)),
             );
           },
         ),
@@ -478,7 +470,13 @@ class _VideoCanvas extends StatelessWidget {
     return SizedBox(
       width: mediaSize.width,
       height: mediaSize.height,
-      child: Video(controller: controller),
+      child: Video(
+        controller: controller,
+        width: mediaSize.width,
+        height: mediaSize.height,
+        fit: BoxFit.fill,
+        controls: null,
+      ),
     );
   }
 }

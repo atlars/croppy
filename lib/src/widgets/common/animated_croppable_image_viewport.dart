@@ -10,6 +10,7 @@ class AnimatedCroppableImageViewport extends StatefulWidget {
     required this.overlayOpacityAnimation,
     this.gesturePadding = 16.0,
     this.heroTag,
+    this.heroContentBuilder,
     this.shouldLightenOnTransform = true,
     this.lightenAnimationDuration = const Duration(milliseconds: 200),
     this.lightenAnimationCurve = Curves.easeInOut,
@@ -19,6 +20,7 @@ class AnimatedCroppableImageViewport extends StatefulWidget {
 
   final CroppableImageController controller;
   final WidgetBuilder contentBuilder;
+  final WidgetBuilder? heroContentBuilder;
   final Animation<double> overlayOpacityAnimation;
   final double gesturePadding;
   final Object? heroTag;
@@ -90,6 +92,9 @@ class _AnimatedCroppableImageViewportState
 
   @override
   Widget build(BuildContext context) {
+    final heroContentBuilder =
+        widget.heroContentBuilder ?? widget.contentBuilder;
+
     return CroppableImageViewport(
       controller: widget.controller,
       gesturePadding: widget.gesturePadding,
@@ -98,7 +103,7 @@ class _AnimatedCroppableImageViewportState
         listenable: widget.controller,
         builder: (context, _) => CroppedHeroImageWidget(
           controller: widget.controller,
-          child: widget.contentBuilder(context),
+          child: heroContentBuilder(context),
         ),
       ),
       child: AnimatedBuilder(
