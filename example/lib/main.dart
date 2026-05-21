@@ -1,5 +1,7 @@
 import 'dart:io';
 import 'dart:math';
+import 'dart:ui' as ui;
+import 'dart:async';
 
 import 'package:croppy/croppy.dart';
 import 'package:example/custom_cropper.dart';
@@ -8,10 +10,14 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:media_kit/media_kit.dart';
+import 'package:media_kit_video/media_kit_video.dart';
 
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  MediaKit.ensureInitialized();
   runApp(const MyApp());
 }
 
@@ -64,6 +70,7 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   late final PageController _pageController;
   var _cropSettings = CropSettings.initial();
+  final _items = <_CroppableItem>[];
 
   @override
   void initState() {
@@ -79,7 +86,12 @@ class _MyHomePageState extends State<MyHomePage> {
         headers: const {'accept': '*/*'},
       );
 
-      _imageProviders.add(image);
+      _items.add(
+        _CroppableItem.image(
+          originalImageProvider: image,
+          previewImageProvider: image,
+        ),
+      );
     }
   }
 
@@ -92,24 +104,163 @@ class _MyHomePageState extends State<MyHomePage> {
     if (result != null && result.files.isNotEmpty) {
       final path = result.files.first.path!;
 
+      final ImageProvider provider;
       if (kIsWeb) {
-        _imageProviders.insert(0, NetworkImage(path));
+        provider = NetworkImage(path);
       } else {
-        _imageProviders.insert(0, FileImage(File(path)));
+        provider = FileImage(File(path));
       }
+
+      _items.insert(
+        0,
+        _CroppableItem.image(
+          originalImageProvider: provider,
+          previewImageProvider: provider,
+        ),
+      );
 
       setState(() {});
     }
   }
 
+  Future<void> _pickVideo() async {
+    final result = await FilePicker.pickFiles(
+      type: FileType.video,
+      allowMultiple: false,
+    );
+
+    if (result == null || result.files.isEmpty) return;
+
+    final path = result.files.first.path;
+    if (path == null) return;
+
+    final player = Player();
+    final controller = VideoController(player);
+
+    await player.open(Media(path), play: true);
+    await player.setPlaylistMode(PlaylistMode.single);
+    await player.setVolume(0.0);
+
+    final videoSize = await _waitForVideoSize(player);
+    if (videoSize == null) {
+      await player.dispose();
+      return;
+    }
+
+    if (!mounted) {
+      await player.dispose();
+      return;
+    }
+
+    setState(() {
+      _items.insert(
+        0,
+        _CroppableItem.video(
+          videoPath: path,
+          player: player,
+          videoController: controller,
+          mediaSize: videoSize,
+        ),
+      );
+    });
+  }
+
+  Future<Size?> _waitForVideoSize(Player player) async {
+    var width = player.state.width ?? 0;
+    var height = player.state.height ?? 0;
+
+    if (width > 0 && height > 0) {
+      return Size(width.toDouble(), height.toDouble());
+    }
+
+    final completer = Completer<Size?>();
+    late final StreamSubscription<int?> widthSub;
+    late final StreamSubscription<int?> heightSub;
+
+    void completeIfReady() {
+      if (width > 0 && height > 0 && !completer.isCompleted) {
+        completer.complete(Size(width.toDouble(), height.toDouble()));
+      }
+    }
+
+    widthSub = player.stream.width.listen((value) {
+      width = value ?? 0;
+      completeIfReady();
+    });
+    heightSub = player.stream.height.listen((value) {
+      height = value ?? 0;
+      completeIfReady();
+    });
+
+    final size = await completer.future.timeout(
+      const Duration(seconds: 6),
+      onTimeout: () => null,
+    );
+
+    await widthSub.cancel();
+    await heightSub.cancel();
+    return size;
+  }
+
   @override
   void dispose() {
     _pageController.dispose();
+    for (final item in _items) {
+      item.player?.dispose();
+    }
     super.dispose();
   }
 
-  final _imageProviders = <ImageProvider>[];
-  final _data = <int, CroppableImageData>{};
+  int get _currentPage {
+    if (_items.isEmpty) return 0;
+    final current = _pageController.page?.round() ?? 0;
+    return current.clamp(0, _items.length - 1);
+  }
+
+  Future<CroppableImageData?> _initialDataFor(_CroppableItem item) async {
+    if (item.data != null) return item.data;
+
+    if (item.isImage) {
+      return CroppableImageData.fromImageProvider(
+        item.originalImageProvider!,
+        cropPathFn: _cropSettings.cropShapeFn,
+      );
+    }
+
+    if (item.mediaSize != null) {
+      return CroppableImageData.initialWithCropPathFn(
+        imageSize: item.mediaSize!,
+        cropPathFn: _cropSettings.cropShapeFn,
+      );
+    }
+
+    return null;
+  }
+
+  Future<void> _applyCropResult(int page, CroppableImageData data) async {
+    final item = _items[page];
+    if (item.isVideo) {
+      setState(() {
+        item.data = data;
+      });
+      return;
+    }
+
+    final image = await obtainImage(item.originalImageProvider!);
+    final cropResult = await cropImage(image, data);
+
+    final byteData = await cropResult.uiImage.toByteData(
+      format: ui.ImageByteFormat.png,
+    );
+    cropResult.uiImage.dispose();
+
+    if (!mounted || byteData == null) return;
+
+    setState(() {
+      item.data = data;
+      item.previewImageProvider = MemoryImage(byteData.buffer.asUint8List());
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -139,23 +290,31 @@ class _MyHomePageState extends State<MyHomePage> {
             label: const Text('Pick image'),
           ),
           const SizedBox(width: 16.0),
+          FloatingActionButton.extended(
+            onPressed: _pickVideo,
+            label: const Text('Pick video'),
+          ),
+          const SizedBox(width: 16.0),
           FloatingActionButton(
             onPressed: () async {
-              final page = _pageController.page?.round() ?? 0;
-              final imageProvider = _imageProviders[page];
-              final initialData = _data[page] ??
-                  await CroppableImageData.fromImageProvider(
-                    imageProvider,
-                    cropPathFn: _cropSettings.cropShapeFn,
-                  );
+              if (_items.isEmpty) return;
+              final page = _currentPage;
+              final item = _items[page];
+              final initialData = await _initialDataFor(item);
+              if (initialData == null) return;
               if (!context.mounted) return;
 
               showCupertinoImageCropper(
                 context,
-                contentBuilder: (context) => Image(image: imageProvider),
+                contentBuilder: (context) => item.isVideo
+                    ? _VideoCanvas(
+                        controller: item.videoController!,
+                        mediaSize: initialData.imageSize,
+                      )
+                    : Image(image: item.originalImageProvider!),
                 initialData: initialData,
                 locale: _cropSettings.locale,
-                heroTag: 'image-$page',
+                heroTag: 'item-$page',
                 showGestureHandlesOn: _cropSettings.showGestureHandlesOn,
                 cropPathFn: _cropSettings.cropShapeFn,
                 showLoadingIndicatorOnSubmit: false,
@@ -163,10 +322,8 @@ class _MyHomePageState extends State<MyHomePage> {
                 allowedAspectRatios: _cropSettings.forcedAspectRatio != null
                     ? [_cropSettings.forcedAspectRatio!]
                     : null,
-                onSubmit: (result) {
-                  setState(() {
-                    _data[page] = result;
-                  });
+                onSubmit: (result) async {
+                  await _applyCropResult(page, result);
                   return result;
                 },
               );
@@ -177,31 +334,32 @@ class _MyHomePageState extends State<MyHomePage> {
           const SizedBox(width: 16.0),
           FloatingActionButton(
             onPressed: () async {
-              final page = _pageController.page?.round() ?? 0;
-              final imageProvider = _imageProviders[page];
-              final initialData = _data[page] ??
-                  await CroppableImageData.fromImageProvider(
-                    imageProvider,
-                    cropPathFn: _cropSettings.cropShapeFn,
-                  );
+              if (_items.isEmpty) return;
+              final page = _currentPage;
+              final item = _items[page];
+              final initialData = await _initialDataFor(item);
+              if (initialData == null) return;
               if (!context.mounted) return;
 
               showMaterialImageCropper(
                 context,
-                contentBuilder: (context) => Image(image: imageProvider),
+                contentBuilder: (context) => item.isVideo
+                    ? _VideoCanvas(
+                        controller: item.videoController!,
+                        mediaSize: initialData.imageSize,
+                      )
+                    : Image(image: item.originalImageProvider!),
                 initialData: initialData,
                 locale: _cropSettings.locale,
-                heroTag: 'image-$page',
+                heroTag: 'item-$page',
                 cropPathFn: _cropSettings.cropShapeFn,
                 enabledTransformations: _cropSettings.enabledTransformations,
                 allowedAspectRatios: _cropSettings.forcedAspectRatio != null
                     ? [_cropSettings.forcedAspectRatio!]
                     : null,
                 showLoadingIndicatorOnSubmit: false,
-                onSubmit: (result) {
-                  setState(() {
-                    _data[page] = result;
-                  });
+                onSubmit: (result) async {
+                  await _applyCropResult(page, result);
                   return result;
                 },
               );
@@ -212,20 +370,29 @@ class _MyHomePageState extends State<MyHomePage> {
           const SizedBox(width: 16.0),
           FloatingActionButton(
             onPressed: () async {
-              final page = _pageController.page?.round() ?? 0;
+              if (_items.isEmpty) return;
+              final page = _currentPage;
+              final item = _items[page];
+              if (item.isVideo) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'Custom cropper supports images only in this demo.',
+                    ),
+                  ),
+                );
+                return;
+              }
 
-              final imageProvider = _imageProviders[page];
               final result = await showCustomCropper(
                 context,
-                imageProvider,
-                heroTag: 'image-$page',
-                initialData: _data[page],
+                item.originalImageProvider!,
+                heroTag: 'item-$page',
+                initialData: item.data,
               );
 
               if (result != null && mounted) {
-                setState(() {
-                  _data[page] = result;
-                });
+                await _applyCropResult(page, result);
               }
             },
             heroTag: 'fab-custom',
@@ -236,25 +403,119 @@ class _MyHomePageState extends State<MyHomePage> {
       body: Center(
         child: PageView.builder(
           controller: _pageController,
-          itemCount: _imageProviders.length,
+          itemCount: _items.length,
           scrollDirection: Axis.horizontal,
           padEnds: true,
           itemBuilder: (context, i) {
+            final item = _items[i];
             return Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0),
               child: Center(
                 child: Hero(
-                  tag: 'image-$i',
+                  tag: 'item-$i',
                   placeholderBuilder: (context, size, child) =>
                       Visibility.maintain(
                     visible: false,
                     child: child,
                   ),
-                  child: Image(image: _imageProviders[i]),
+                  child: item.isVideo
+                      ? _VideoPreview(item: item)
+                      : Image(image: item.previewImageProvider!),
                 ),
               ),
             );
           },
+        ),
+      ),
+    );
+  }
+}
+
+class _CroppableItem {
+  _CroppableItem.image({
+    required this.originalImageProvider,
+    required this.previewImageProvider,
+  })  : isVideo = false,
+        videoPath = null,
+        player = null,
+        videoController = null,
+        mediaSize = null;
+
+  _CroppableItem.video({
+    required this.videoPath,
+    required this.player,
+    required this.videoController,
+    required this.mediaSize,
+  })  : isVideo = true,
+        originalImageProvider = null,
+        previewImageProvider = null;
+
+  final bool isVideo;
+  bool get isImage => !isVideo;
+
+  final String? videoPath;
+  final Player? player;
+  final VideoController? videoController;
+  final Size? mediaSize;
+
+  final ImageProvider? originalImageProvider;
+  ImageProvider? previewImageProvider;
+
+  CroppableImageData? data;
+}
+
+class _VideoCanvas extends StatelessWidget {
+  const _VideoCanvas({
+    required this.controller,
+    required this.mediaSize,
+  });
+
+  final VideoController controller;
+  final Size mediaSize;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: mediaSize.width,
+      height: mediaSize.height,
+      child: Video(controller: controller),
+    );
+  }
+}
+
+class _VideoPreview extends StatelessWidget {
+  const _VideoPreview({required this.item});
+
+  final _CroppableItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    if (item.data == null) {
+      return _VideoCanvas(
+        controller: item.videoController!,
+        mediaSize: item.mediaSize!,
+      );
+    }
+
+    final data = item.data!;
+    final transform = Matrix4.identity()
+      ..translateByDouble(-data.cropRect.left, -data.cropRect.top, 0.0, 1.0)
+      ..multiply(data.totalImageTransform);
+
+    return FittedBox(
+      fit: BoxFit.contain,
+      child: SizedBox(
+        width: data.cropRect.width,
+        height: data.cropRect.height,
+        child: ClipPath(
+          clipper: CropShapeClipper(data.cropShape),
+          child: Transform(
+            transform: transform,
+            child: _VideoCanvas(
+              controller: item.videoController!,
+              mediaSize: data.imageSize,
+            ),
+          ),
         ),
       ),
     );
