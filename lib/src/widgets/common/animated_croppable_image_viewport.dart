@@ -5,6 +5,7 @@ class AnimatedCroppableImageViewport extends StatefulWidget {
   const AnimatedCroppableImageViewport({
     super.key,
     required this.controller,
+    required this.contentBuilder,
     required this.cropHandlesBuilder,
     required this.overlayOpacityAnimation,
     this.gesturePadding = 16.0,
@@ -17,6 +18,7 @@ class AnimatedCroppableImageViewport extends StatefulWidget {
   });
 
   final CroppableImageController controller;
+  final WidgetBuilder contentBuilder;
   final Animation<double> overlayOpacityAnimation;
   final double gesturePadding;
   final Object? heroTag;
@@ -96,7 +98,7 @@ class _AnimatedCroppableImageViewportState
         listenable: widget.controller,
         builder: (context, _) => CroppedHeroImageWidget(
           controller: widget.controller,
-          child: Image(image: widget.controller.imageProvider),
+          child: widget.contentBuilder(context),
         ),
       ),
       child: AnimatedBuilder(
@@ -109,7 +111,7 @@ class _AnimatedCroppableImageViewportState
               controller: widget.controller,
               overlayOpacity: widget.overlayOpacityAnimation.value,
               backgroundOpacity: _backgroundOpacity,
-              image: Image(image: widget.controller.imageProvider),
+              image: widget.contentBuilder(context),
               cropHandles: widget.cropHandlesBuilder(context),
               gesturePadding: widget.gesturePadding,
             ),

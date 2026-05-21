@@ -11,11 +11,11 @@ export 'material_pages.dart';
 ///
 /// See either [showMaterialImageCropper] or [showCupertinoImageCropper] for
 /// more information on the parameters.
-Future<CropImageResult?> showAdaptiveImageCropper(
+Future<CroppableImageData?> showAdaptiveImageCropper(
   BuildContext context, {
-  required ImageProvider imageProvider,
-  CroppableImageData? initialData,
-  CroppableImagePostProcessFn? postProcessFn,
+  required WidgetBuilder contentBuilder,
+  required CroppableImageData initialData,
+  CroppableImageOnSubmitFn? onSubmit,
   CropShapeFn? cropPathFn,
   List<CropAspectRatio?>? allowedAspectRatios,
   List<Transformation>? enabledTransformations,
@@ -30,9 +30,9 @@ Future<CropImageResult?> showAdaptiveImageCropper(
   return switch (defaultTargetPlatform) {
     TargetPlatform.iOS || TargetPlatform.macOS => showCupertinoImageCropper(
         context,
-        imageProvider: imageProvider,
+        contentBuilder: contentBuilder,
         initialData: initialData,
-        postProcessFn: postProcessFn,
+        onSubmit: onSubmit,
         cropPathFn: cropPathFn,
         allowedAspectRatios: allowedAspectRatios,
         enabledTransformations: enabledTransformations,
@@ -45,9 +45,9 @@ Future<CropImageResult?> showAdaptiveImageCropper(
       ),
     _ => showMaterialImageCropper(
         context,
-        imageProvider: imageProvider,
+        contentBuilder: contentBuilder,
         initialData: initialData,
-        postProcessFn: postProcessFn,
+        onSubmit: onSubmit,
         cropPathFn: cropPathFn,
         allowedAspectRatios: allowedAspectRatios,
         enabledTransformations: enabledTransformations,

@@ -10,8 +10,7 @@ class CupertinoCroppableImageController
   CupertinoCroppableImageController({
     required TickerProvider vsync,
     required super.data,
-    required super.imageProvider,
-    super.postProcessFn,
+    super.onSubmit,
     super.cropShapeFn,
     super.enabledTransformations,
     super.minimumCropDimension,

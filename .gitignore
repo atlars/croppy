@@ -36,3 +36,6 @@ ephemeral
 
 # FVM Version Cache
 .fvm/
+
+# Vscode
+.vscode

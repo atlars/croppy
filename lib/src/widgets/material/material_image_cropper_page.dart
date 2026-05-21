@@ -6,6 +6,7 @@ class MaterialImageCropperPage extends StatelessWidget {
   const MaterialImageCropperPage({
     super.key,
     required this.controller,
+    required this.contentBuilder,
     required this.shouldPopAfterCrop,
     required this.showGestureHandlesOn,
     this.gesturePadding = 16.0,
@@ -15,6 +16,7 @@ class MaterialImageCropperPage extends StatelessWidget {
   });
 
   final CroppableImageController controller;
+  final WidgetBuilder contentBuilder;
   final double gesturePadding;
   final Object? heroTag;
   final bool shouldPopAfterCrop;
@@ -51,6 +53,7 @@ class MaterialImageCropperPage extends StatelessWidget {
                           padding: const EdgeInsets.all(48.0),
                           child: AnimatedCroppableImageViewport(
                             controller: controller,
+                            contentBuilder: contentBuilder,
                             gesturePadding: gesturePadding,
                             overlayOpacityAnimation: overlayOpacityAnimation,
                             heroTag: heroTag,

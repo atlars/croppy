@@ -4,12 +4,12 @@ import 'package:flutter/material.dart';
 
 import 'package:croppy/croppy.dart';
 
-Future<CropImageResult?> showCustomCropper(
+Future<CroppableImageData?> showCustomCropper(
   BuildContext context,
   ImageProvider imageProvider, {
   CroppableImageData? initialData,
   Object? heroTag,
-  Future<CropImageResult> Function(CropImageResult)? onCropped,
+  CroppableImageOnSubmitFn? onCropped,
   List<CropShapeType> showGestureHandlesOn = const [CropShapeType.aabb],
 }) async {
   // Before pushing the route, prepare the initial data. If it's null, populate
@@ -49,17 +49,16 @@ class CustomCropper extends StatelessWidget {
   });
 
   final ImageProvider imageProvider;
-  final CroppableImageData? initialData;
+  final CroppableImageData initialData;
   final Object? heroTag;
-  final Future<CropImageResult> Function(CropImageResult)? onCropped;
+  final CroppableImageOnSubmitFn? onCropped;
   final List<CropShapeType> showGestureHandlesOn;
 
   @override
   Widget build(BuildContext context) {
     return DefaultCupertinoCroppableImageController(
-      imageProvider: imageProvider,
       initialData: initialData,
-      postProcessFn: onCropped,
+      onSubmit: onCropped,
       builder: (context, controller) {
         return CroppableImagePageAnimator(
           controller: controller,
@@ -91,6 +90,7 @@ class CustomCropper extends StatelessWidget {
                   padding: const EdgeInsets.all(32.0),
                   child: AnimatedCroppableImageViewport(
                     controller: controller,
+                    contentBuilder: (context) => Image(image: imageProvider),
                     cropHandlesBuilder: (context) => MaterialImageCropperHandles(
                       controller: controller,
                       gesturePadding: 16.0,

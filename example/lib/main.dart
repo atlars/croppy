@@ -8,18 +8,10 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'dart:ui' as ui;
 
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 void main() {
-  if (!kIsWeb) {
-    // For some reason, the C++ implementation of the Cassowary solver is super
-    // slow in debug mode. So we force the Dart implementation to be used in
-    // debug mode. This only applies to Windows.
-    croppyForceUseCassowaryDartImpl = true;
-  }
-
   runApp(const MyApp());
 }
 
@@ -92,7 +84,7 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   Future<void> _pickImage() async {
-    final result = await FilePicker.platform.pickFiles(
+    final result = await FilePicker.pickFiles(
       type: FileType.image,
       allowMultiple: false,
     );
@@ -118,7 +110,6 @@ class _MyHomePageState extends State<MyHomePage> {
 
   final _imageProviders = <ImageProvider>[];
   final _data = <int, CroppableImageData>{};
-  final _croppedImage = <int, ui.Image>{};
 
   @override
   Widget build(BuildContext context) {
@@ -149,15 +140,22 @@ class _MyHomePageState extends State<MyHomePage> {
           ),
           const SizedBox(width: 16.0),
           FloatingActionButton(
-            onPressed: () {
+            onPressed: () async {
               final page = _pageController.page?.round() ?? 0;
+              final imageProvider = _imageProviders[page];
+              final initialData = _data[page] ??
+                  await CroppableImageData.fromImageProvider(
+                    imageProvider,
+                    cropPathFn: _cropSettings.cropShapeFn,
+                  );
+              if (!context.mounted) return;
 
               showCupertinoImageCropper(
                 context,
+                contentBuilder: (context) => Image(image: imageProvider),
+                initialData: initialData,
                 locale: _cropSettings.locale,
-                imageProvider: _imageProviders[page],
                 heroTag: 'image-$page',
-                initialData: _data[page],
                 showGestureHandlesOn: _cropSettings.showGestureHandlesOn,
                 cropPathFn: _cropSettings.cropShapeFn,
                 showLoadingIndicatorOnSubmit: false,
@@ -165,14 +163,10 @@ class _MyHomePageState extends State<MyHomePage> {
                 allowedAspectRatios: _cropSettings.forcedAspectRatio != null
                     ? [_cropSettings.forcedAspectRatio!]
                     : null,
-                postProcessFn: (result) async {
-                  _croppedImage[page]?.dispose();
-
+                onSubmit: (result) {
                   setState(() {
-                    _croppedImage[page] = result.uiImage;
-                    _data[page] = result.transformationsData;
+                    _data[page] = result;
                   });
-
                   return result;
                 },
               );
@@ -182,29 +176,32 @@ class _MyHomePageState extends State<MyHomePage> {
           ),
           const SizedBox(width: 16.0),
           FloatingActionButton(
-            onPressed: () {
+            onPressed: () async {
               final page = _pageController.page?.round() ?? 0;
+              final imageProvider = _imageProviders[page];
+              final initialData = _data[page] ??
+                  await CroppableImageData.fromImageProvider(
+                    imageProvider,
+                    cropPathFn: _cropSettings.cropShapeFn,
+                  );
+              if (!context.mounted) return;
 
               showMaterialImageCropper(
                 context,
+                contentBuilder: (context) => Image(image: imageProvider),
+                initialData: initialData,
                 locale: _cropSettings.locale,
-                imageProvider: _imageProviders[page],
                 heroTag: 'image-$page',
-                initialData: _data[page],
                 cropPathFn: _cropSettings.cropShapeFn,
                 enabledTransformations: _cropSettings.enabledTransformations,
                 allowedAspectRatios: _cropSettings.forcedAspectRatio != null
                     ? [_cropSettings.forcedAspectRatio!]
                     : null,
                 showLoadingIndicatorOnSubmit: false,
-                postProcessFn: (result) async {
-                  _croppedImage[page]?.dispose();
-
+                onSubmit: (result) {
                   setState(() {
-                    _croppedImage[page] = result.uiImage;
-                    _data[page] = result.transformationsData;
+                    _data[page] = result;
                   });
-
                   return result;
                 },
               );
@@ -214,25 +211,22 @@ class _MyHomePageState extends State<MyHomePage> {
           ),
           const SizedBox(width: 16.0),
           FloatingActionButton(
-            onPressed: () {
+            onPressed: () async {
               final page = _pageController.page?.round() ?? 0;
 
-              showCustomCropper(
+              final imageProvider = _imageProviders[page];
+              final result = await showCustomCropper(
                 context,
-                _imageProviders[page],
+                imageProvider,
                 heroTag: 'image-$page',
                 initialData: _data[page],
-                onCropped: (result) async {
-                  _croppedImage[page]?.dispose();
-
-                  setState(() {
-                    _croppedImage[page] = result.uiImage;
-                    _data[page] = result.transformationsData;
-                  });
-
-                  return result;
-                },
               );
+
+              if (result != null && mounted) {
+                setState(() {
+                  _data[page] = result;
+                });
+              }
             },
             heroTag: 'fab-custom',
             child: const Icon(Icons.edit_rounded),
@@ -256,9 +250,7 @@ class _MyHomePageState extends State<MyHomePage> {
                     visible: false,
                     child: child,
                   ),
-                  child: _croppedImage[i] != null
-                      ? RawImage(image: _croppedImage[i])
-                      : Image(image: _imageProviders[i]),
+                  child: Image(image: _imageProviders[i]),
                 ),
               ),
             );

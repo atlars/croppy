@@ -5,11 +5,10 @@ class MaterialCroppableImageController
     extends CroppableImageControllerWithMixins with AnimatedControllerMixin {
   MaterialCroppableImageController({
     required TickerProvider vsync,
-    required super.imageProvider,
     required super.data,
     super.cropShapeFn,
     super.enabledTransformations,
-    super.postProcessFn,
+    super.onSubmit,
     super.minimumCropDimension,
     List<CropAspectRatio?>? allowedAspectRatios,
   }) : allowedAspectRatios =

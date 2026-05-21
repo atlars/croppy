@@ -5,19 +5,14 @@ import 'package:flutter/cupertino.dart';
 
 /// Shows a [CupertinoImageCropperPage] and returns the cropped image.
 ///
-/// The [imageProvider] is the image that will be cropped.
+/// The [contentBuilder] builds the widget that is shown in the crop viewport.
 ///
-/// The [initialData] is the initial crop data. If not provided, the image will
-/// be shown in full size. There might be a small delay before the cropper is
-/// shown, because the image needs to be loaded first (if it's in the cache,
-/// then the delay is practically zero).
+/// The [initialData] is the initial crop data.
 ///
 /// The [heroTag] is used to create a hero animation between the image
 /// preview and the crop page. If you don't want a hero animation, pass null.
 ///
-/// The [postProcessFn] is a function that is called after the image has been
-/// cropped. Use it to, for example, compress the image, or update the state in
-/// the preview page.
+/// The [onSubmit] callback is called when the user taps Done.
 ///
 /// Use the [cropPathFn] to define a custom crop shape. If not provided, the
 /// default crop shape is a rectangle.
@@ -43,11 +38,11 @@ import 'package:flutter/cupertino.dart';
 /// You can use the [themeData] to customize the appearance of the cropper. If
 /// none is provided, a new CupertinoThemeData will be constructed internally
 /// based on the primary color of the surrounding theme.
-Future<CropImageResult?> showCupertinoImageCropper(
+Future<CroppableImageData?> showCupertinoImageCropper(
   BuildContext context, {
-  required ImageProvider imageProvider,
-  CroppableImageData? initialData,
-  CroppableImagePostProcessFn? postProcessFn,
+  required WidgetBuilder contentBuilder,
+  required CroppableImageData initialData,
+  CroppableImageOnSubmitFn? onSubmit,
   CropShapeFn? cropPathFn,
   List<CropAspectRatio?>? allowedAspectRatios,
   List<Transformation>? enabledTransformations,
@@ -58,24 +53,12 @@ Future<CropImageResult?> showCupertinoImageCropper(
   bool showLoadingIndicatorOnSubmit = false,
   List<CropShapeType> showGestureHandlesOn = const [CropShapeType.aabb],
 }) async {
-  late final CroppableImageData _initialData;
-
-  if (initialData != null) {
-    _initialData = initialData;
-  } else {
-    _initialData = await CroppableImageData.fromImageProvider(
-      imageProvider,
-      cropPathFn: cropPathFn ?? aabbCropShapeFn,
-    );
-  }
-
   Widget builder(context) {
     return CroppyLocalizationProvider(
       locale: locale,
       child: DefaultCupertinoCroppableImageController(
-        imageProvider: imageProvider,
-        initialData: _initialData,
-        postProcessFn: postProcessFn,
+        initialData: initialData,
+        onSubmit: onSubmit,
         cropShapeFn: cropPathFn,
         allowedAspectRatios: allowedAspectRatios,
         enabledTransformations: enabledTransformations,
@@ -83,6 +66,7 @@ Future<CropImageResult?> showCupertinoImageCropper(
           heroTag: heroTag,
           showLoadingIndicatorOnSubmit: showLoadingIndicatorOnSubmit,
           controller: controller,
+          contentBuilder: contentBuilder,
           shouldPopAfterCrop: shouldPopAfterCrop,
           themeData: themeData,
           showGestureHandlesOn: showGestureHandlesOn,
@@ -92,7 +76,7 @@ Future<CropImageResult?> showCupertinoImageCropper(
   }
 
   if (context.mounted) {
-    return Navigator.of(context).push<CropImageResult?>(
+    return Navigator.of(context).push<CroppableImageData?>(
       heroTag != null
           ? CupertinoImageCropperWithHeroRoute(builder: builder)
           : CupertinoPageRoute(builder: builder),

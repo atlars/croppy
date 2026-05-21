@@ -1,22 +1,19 @@
 import 'dart:math' as math;
-import 'dart:typed_data';
+import 'dart:async';
 
 import 'package:croppy/src/src.dart';
 import 'package:flutter/widgets.dart';
 
-/// A function that is called in [crop] as a post-processing function. Use it
-/// to, for example, compress the image, or update the state in the preview
-/// page.
-typedef CroppableImagePostProcessFn = Future<CropImageResult> Function(
-  CropImageResult result,
+/// A function that is called in [crop] before the data is returned.
+typedef CroppableImageOnSubmitFn = FutureOr<CroppableImageData> Function(
+  CroppableImageData data,
 );
 
 /// A base class for controllers that can be used with this package.
 abstract class BaseCroppableImageController extends ChangeNotifier {
   BaseCroppableImageController({
-    required this.imageProvider,
     required CroppableImageData data,
-    this.postProcessFn,
+    this.onSubmit,
     this.cropShapeFn = aabbCropShapeFn,
     this.minimumCropDimension = 8.0,
   })  : _data = data.copyWith(),
@@ -25,13 +22,8 @@ abstract class BaseCroppableImageController extends ChangeNotifier {
     recomputeValueNotifiers();
   }
 
-  /// The image provider that represents the image to be cropped.
-  final ImageProvider imageProvider;
-
-  /// A function that is called in [crop] as a post-processing function. Use it
-  /// to, for example, compress the image, or update the state in the preview
-  /// page.
-  final CroppableImagePostProcessFn? postProcessFn;
+  /// A callback that is called in [crop] before returning the crop data.
+  final CroppableImageOnSubmitFn? onSubmit;
 
   /// A function that provides the crop path for a given size.
   final CropShapeFn cropShapeFn;
@@ -210,17 +202,14 @@ abstract class BaseCroppableImageController extends ChangeNotifier {
     isChangedNotifier.value = data != _initialData;
   }
 
-  /// Crops the image and returns the cropped image as a [Uint8List].
+  /// Submits the current crop data.
   @mustCallSuper
-  Future<CropImageResult> crop() async {
-    final image = await obtainImage(imageProvider);
-    final result = await cropImage(image, data);
-
-    if (postProcessFn != null) {
-      return postProcessFn!(result);
-    } else {
-      return result;
+  Future<CroppableImageData> crop() async {
+    final result = data;
+    if (onSubmit != null) {
+      return onSubmit!(result);
     }
+    return result;
   }
 }
 
@@ -234,9 +223,8 @@ abstract class CroppableImageController extends BaseCroppableImageController
         RotateTransformation,
         MirrorTransformation {
   CroppableImageController({
-    required super.imageProvider,
     required super.data,
-    super.postProcessFn,
+    super.onSubmit,
     super.cropShapeFn,
     this.enabledTransformations = Transformation.values,
     super.minimumCropDimension,
@@ -260,9 +248,8 @@ abstract class CroppableImageControllerWithMixins
     extends CroppableImageController
     with AspectRatioMixin, ResizeStaticLayoutMixin, ViewportScaleComputerMixin {
   CroppableImageControllerWithMixins({
-    required super.imageProvider,
     required super.data,
-    super.postProcessFn,
+    super.onSubmit,
     super.cropShapeFn,
     super.enabledTransformations,
     super.minimumCropDimension,

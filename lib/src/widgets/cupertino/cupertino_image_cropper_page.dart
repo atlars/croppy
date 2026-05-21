@@ -10,6 +10,7 @@ class CupertinoImageCropperPage extends StatelessWidget {
   const CupertinoImageCropperPage({
     super.key,
     required this.controller,
+    required this.contentBuilder,
     required this.shouldPopAfterCrop,
     required this.showGestureHandlesOn,
     this.gesturePadding = 16.0,
@@ -19,6 +20,7 @@ class CupertinoImageCropperPage extends StatelessWidget {
   });
 
   final CroppableImageController controller;
+  final WidgetBuilder contentBuilder;
   final double gesturePadding;
   final Object? heroTag;
   final bool shouldPopAfterCrop;
@@ -60,6 +62,7 @@ class CupertinoImageCropperPage extends StatelessWidget {
                       child: RepaintBoundary(
                         child: AnimatedCroppableImageViewport(
                           controller: controller,
+                          contentBuilder: contentBuilder,
                           overlayOpacityAnimation: overlayOpacityAnimation,
                           gesturePadding: gesturePadding,
                           heroTag: heroTag,

@@ -5,17 +5,15 @@ class DefaultMaterialCroppableImageController extends StatefulWidget {
   const DefaultMaterialCroppableImageController({
     super.key,
     required this.builder,
-    required this.imageProvider,
     required this.initialData,
     this.allowedAspectRatios,
-    this.postProcessFn,
+    this.onSubmit,
     this.cropShapeFn,
     this.enabledTransformations,
   });
 
-  final ImageProvider imageProvider;
-  final CroppableImageData? initialData;
-  final CroppableImagePostProcessFn? postProcessFn;
+  final CroppableImageData initialData;
+  final CroppableImageOnSubmitFn? onSubmit;
   final CropShapeFn? cropShapeFn;
   final List<CropAspectRatio?>? allowedAspectRatios;
   final List<Transformation>? enabledTransformations;
@@ -42,22 +40,10 @@ class _DefaultMaterialCroppableImageControllerState
   }
 
   Future<void> _prepareController() async {
-    late final CroppableImageData initialData;
-
-    if (widget.initialData != null) {
-      initialData = widget.initialData!;
-    } else {
-      initialData = await CroppableImageData.fromImageProvider(
-        widget.imageProvider,
-        cropPathFn: widget.cropShapeFn ?? aabbCropShapeFn,
-      );
-    }
-
     _controller = MaterialCroppableImageController(
       vsync: this,
-      imageProvider: widget.imageProvider,
-      data: initialData,
-      postProcessFn: widget.postProcessFn,
+      data: widget.initialData,
+      onSubmit: widget.onSubmit,
       cropShapeFn: widget.cropShapeFn ?? aabbCropShapeFn,
       allowedAspectRatios: widget.allowedAspectRatios,
       enabledTransformations:
